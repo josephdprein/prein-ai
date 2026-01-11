@@ -21,6 +21,135 @@ interface ChatRequest {
   sessionId?: string;
 }
 
+// Error types from Anthropic API
+interface AnthropicErrorResponse {
+  status?: number;
+  error?: {
+    type?: string;
+    message?: string;
+  };
+  message?: string;
+  type?: string;
+}
+
+// Parse API errors into user-friendly messages
+function getErrorMessage(error: unknown): { message: string; isRetryable: boolean } {
+  // Check if it's an Anthropic API error
+  if (error && typeof error === "object") {
+    const err = error as AnthropicErrorResponse & Error;
+    const status = err.status;
+    const errorType = err.error?.type || err.type;
+    const errorMessage = err.error?.message || err.message || "";
+
+    // Authentication errors
+    if (status === 401 || errorType === "authentication_error") {
+      return {
+        message: "Authentication failed. Please check that your API key or Claude Code subscription is properly configured.",
+        isRetryable: false,
+      };
+    }
+
+    // Permission/authorization errors
+    if (status === 403 || errorType === "permission_error") {
+      if (errorMessage.includes("Claude Code")) {
+        return {
+          message: "This credential is only authorized for Claude Code. Please use a standard API key for this application.",
+          isRetryable: false,
+        };
+      }
+      return {
+        message: "Access denied. Your account may not have permission to use this model or feature.",
+        isRetryable: false,
+      };
+    }
+
+    // Rate limiting
+    if (status === 429 || errorType === "rate_limit_error") {
+      return {
+        message: "Rate limit reached. Please wait a moment before sending another message.",
+        isRetryable: true,
+      };
+    }
+
+    // Usage/billing limits
+    if (errorType === "invalid_request_error" && errorMessage.includes("credit")) {
+      return {
+        message: "Usage limit reached. Please check your account billing or upgrade your plan.",
+        isRetryable: false,
+      };
+    }
+
+    if (errorType === "invalid_request_error" && errorMessage.includes("quota")) {
+      return {
+        message: "Monthly quota exceeded. Your usage will reset at the start of the next billing period.",
+        isRetryable: false,
+      };
+    }
+
+    // Overloaded
+    if (status === 529 || errorType === "overloaded_error") {
+      return {
+        message: "Claude is currently experiencing high demand. Please try again in a few moments.",
+        isRetryable: true,
+      };
+    }
+
+    // Server errors
+    if (status === 500 || errorType === "api_error") {
+      return {
+        message: "An unexpected error occurred with the AI service. Please try again.",
+        isRetryable: true,
+      };
+    }
+
+    // Request too large
+    if (errorType === "invalid_request_error" && errorMessage.includes("token")) {
+      return {
+        message: "The conversation has grown too long. Please start a new chat.",
+        isRetryable: false,
+      };
+    }
+
+    // Network/connection errors
+    if (err.message?.includes("fetch") || err.message?.includes("network") || err.message?.includes("ECONNREFUSED")) {
+      return {
+        message: "Unable to connect to the AI service. Please check your internet connection.",
+        isRetryable: true,
+      };
+    }
+
+    // Generic error with message
+    if (errorMessage) {
+      return {
+        message: `Error: ${errorMessage}`,
+        isRetryable: false,
+      };
+    }
+  }
+
+  // Fallback for unknown errors
+  return {
+    message: "An unexpected error occurred. Please try again.",
+    isRetryable: true,
+  };
+}
+
+// Format error as HTML for chat interface
+function formatErrorHtml(errorInfo: { message: string; isRetryable: boolean }): string {
+  const retryHint = errorInfo.isRetryable
+    ? '<div class="error-hint">You can try again in a moment.</div>'
+    : "";
+  return `
+    <div class="message error-message">
+      <div class="error-icon">⚠️</div>
+      <div class="error-content">
+        <div class="error-text">${escapeHtml(errorInfo.message)}</div>
+        ${retryHint}
+      </div>
+    </div>
+  `;
+}
+
 async function handleChat(req: Request): Promise<Response> {
   try {
     const body = (await req.json()) as ChatRequest;
@@ -39,40 +168,58 @@ async function handleChat(req: Request): Promise<Response> {
     // Add user message to history
     history.push({ role: "user", content: message });
 
-    // Call Claude API
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: history,
-    });
+    try {
+      // Call Claude API
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: history,
+      });
 
-    // Extract assistant response
-    const assistantMessage =
-      response.content[0].type === "text" ? response.content[0].text : "";
+      // Extract assistant response
+      const assistantMessage =
+        response.content[0].type === "text" ? response.content[0].text : "";
 
-    // Add assistant response to history
-    history.push({ role: "assistant", content: assistantMessage });
+      // Add assistant response to history
+      history.push({ role: "assistant", content: assistantMessage });
 
-    // Return HTML fragment for HTMX
-    const html = `
-      <div class="message user-message">
-        <div class="message-content">${escapeHtml(message)}</div>
-      </div>
-      <div class="message assistant-message">
-        <div class="message-content">${formatMessage(assistantMessage)}</div>
-      </div>
-    `;
+      // Return HTML fragment for HTMX
+      const html = `
+        <div class="message user-message">
+          <div class="message-content">${escapeHtml(message)}</div>
+        </div>
+        <div class="message assistant-message">
+          <div class="message-content">${formatMessage(assistantMessage)}</div>
+        </div>
+      `;
 
-    return new Response(html, {
-      headers: { "Content-Type": "text/html" },
-    });
+      return new Response(html, {
+        headers: { "Content-Type": "text/html" },
+      });
+    } catch (apiError) {
+      // Remove the failed user message from history
+      history.pop();
+
+      console.error("Claude API error:", apiError);
+      const errorInfo = getErrorMessage(apiError);
+
+      // Return user message + error for display
+      const html = `
+        <div class="message user-message">
+          <div class="message-content">${escapeHtml(message)}</div>
+        </div>
+        ${formatErrorHtml(errorInfo)}
+      `;
+
+      return new Response(html, {
+        headers: { "Content-Type": "text/html" },
+      });
+    }
   } catch (error) {
-    console.error("Chat error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    console.error("Chat handler error:", error);
     return new Response(
-      `<div class="message error-message">Error: ${escapeHtml(errorMessage)}</div>`,
+      formatErrorHtml({ message: "Failed to process your message. Please try again.", isRetryable: true }),
       {
         status: 500,
         headers: { "Content-Type": "text/html" },
@@ -126,9 +273,19 @@ async function handleFeature(req: Request): Promise<Response> {
           // Update the conversation history
           agentConversations.set(sessionId, newHistory);
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          sendEvent({ type: "error", content: errorMessage });
+          console.error("Agent error:", error);
+          const errorInfo = getErrorMessage(error);
+          sendEvent({
+            type: "error",
+            content: errorInfo.message,
+            success: false,
+          });
+          if (errorInfo.isRetryable) {
+            sendEvent({
+              type: "text",
+              content: "You can try again in a moment.",
+            });
+          }
         } finally {
           controller.close();
         }

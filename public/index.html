@@ -206,9 +206,33 @@
     }
 
     .error-message {
-      background-color: #4a1a1a;
-      color: #ff6b6b;
+      background-color: #3d1a1a;
+      border: 1px solid #5a2a2a;
+      color: #ff8a8a;
       align-self: center;
+      max-width: 90%;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .error-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .error-content {
+      flex: 1;
+    }
+
+    .error-text {
+      margin-bottom: 0.25rem;
+    }
+
+    .error-hint {
+      font-size: 0.8rem;
+      color: #cc8a8a;
+      font-style: italic;
     }
 
     .message-content {

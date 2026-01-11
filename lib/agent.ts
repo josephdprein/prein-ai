@@ -43,6 +43,30 @@ const SYSTEM_PROMPT = `You are an expert full-stack developer working on a web a
 - Always commit your changes with a descriptive message
 - If you're unsure about something, check the existing code first`;
 
+// Check if error is an API-level error that should stop the agent
+function isApiError(error: unknown): boolean {
+  if (error && typeof error === "object") {
+    const err = error as { status?: number; type?: string; error?: { type?: string } };
+    const status = err.status;
+    const errorType = err.error?.type || err.type;
+
+    // These are API-level errors that should bubble up
+    return (
+      status === 401 || // Auth error
+      status === 403 || // Permission error
+      status === 429 || // Rate limit
+      status === 529 || // Overloaded
+      errorType === "authentication_error" ||
+      errorType === "permission_error" ||
+      errorType === "rate_limit_error" ||
+      errorType === "overloaded_error" ||
+      (errorType === "invalid_request_error" &&
+        (String(err).includes("credit") || String(err).includes("quota")))
+    );
+  }
+  return false;
+}
+
 export async function runAgent(
   userMessage: string,
   conversationHistory: Anthropic.MessageParam[],
@@ -58,6 +82,8 @@ export async function runAgent(
   let continueLoop = true;
   const maxIterations = 20; // Safety limit
   let iterations = 0;
+  let consecutiveErrors = 0;
+  const maxConsecutiveErrors = 3;
 
   while (continueLoop && iterations < maxIterations) {
     iterations++;
@@ -72,6 +98,9 @@ export async function runAgent(
         tools: toolDefinitions,
         messages,
       });
+
+      // Reset consecutive errors on successful API call
+      consecutiveErrors = 0;
 
       // Process response content
       const assistantContent: Anthropic.ContentBlock[] = [];
@@ -136,9 +165,30 @@ export async function runAgent(
         continueLoop = false;
       }
     } catch (error) {
+      consecutiveErrors++;
+
+      // Re-throw API-level errors to be handled by the main handler
+      if (isApiError(error)) {
+        throw error;
+      }
+
+      // For other errors, report them but try to continue
       const errorMessage = error instanceof Error ? error.message : String(error);
-      onEvent({ type: "error", content: errorMessage });
-      continueLoop = false;
+      onEvent({
+        type: "error",
+        content: `Error during processing: ${errorMessage}`,
+        success: false,
+      });
+
+      // Stop if we hit too many consecutive errors
+      if (consecutiveErrors >= maxConsecutiveErrors) {
+        onEvent({
+          type: "error",
+          content: "Too many consecutive errors. Stopping agent.",
+          success: false,
+        });
+        continueLoop = false;
+      }
     }
   }
 
@@ -146,6 +196,7 @@ export async function runAgent(
     onEvent({
       type: "error",
       content: "Reached maximum iterations. Stopping for safety.",
+      success: false,
     });
   }
 

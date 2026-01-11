@@ -24,10 +24,14 @@ jobs:
       - name: Build
         run: bun build index.ts --outdir=./dist
 
-      - name: Deploy to Fly.io
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy
-        run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Deploy to Hetzner VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            cd /opt/prein-ai
+            git pull origin main
+            bun install
+            sudo systemctl restart prein-ai

@@ -1,0 +1,17 @@
+[Unit]
+Description=Prein AI Chat Application
+After=network.target
+
+[Service]
+Type=simple
+User=prein
+WorkingDirectory=/opt/prein-ai
+ExecStart=/home/prein/.bun/bin/bun run index.ts
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/opt/prein-ai/.env
+
+[Install]
+WantedBy=multi-user.target

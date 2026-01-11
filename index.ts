@@ -1,10 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { runAgent, type AgentEvent } from "./lib/agent";
 
 // Initialize Anthropic client - uses ANTHROPIC_API_KEY env var by default
 const anthropic = new Anthropic();
 
 // Store conversation history for each session (in-memory for now)
 const conversations = new Map<string, Anthropic.MessageParam[]>();
+
+// Store agent conversation history separately
+const agentConversations = new Map<string, Anthropic.MessageParam[]>();
+
+// Project root for the agent to work in
+const PROJECT_ROOT = process.cwd();
 
 // System prompt - extensible for custom prompting
 const SYSTEM_PROMPT = `You are a helpful AI assistant. Be concise and clear in your responses.`;
@@ -81,6 +88,77 @@ function handleClearChat(req: Request): Response {
   return new Response("", { status: 200 });
 }
 
+// Feature development agent handler with SSE streaming
+async function handleFeature(req: Request): Promise<Response> {
+  try {
+    const body = (await req.json()) as ChatRequest;
+    const { message, sessionId = "default" } = body;
+
+    if (!message || typeof message !== "string") {
+      return new Response("Message is required", { status: 400 });
+    }
+
+    // Get or create agent conversation history
+    if (!agentConversations.has(sessionId)) {
+      agentConversations.set(sessionId, []);
+    }
+    const history = agentConversations.get(sessionId)!;
+
+    // Create a readable stream for SSE
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+
+        const sendEvent = (event: AgentEvent) => {
+          const data = JSON.stringify(event);
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        };
+
+        try {
+          // Run the agent
+          const newHistory = await runAgent(
+            message,
+            history,
+            PROJECT_ROOT,
+            sendEvent
+          );
+
+          // Update the conversation history
+          agentConversations.set(sessionId, newHistory);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          sendEvent({ type: "error", content: errorMessage });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (error) {
+    console.error("Feature error:", error);
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
+
+async function handleFeatureClear(req: Request): Promise<Response> {
+  try {
+    const body = (await req.json()) as { sessionId?: string };
+    const sessionId = body.sessionId || "default";
+    agentConversations.delete(sessionId);
+    return new Response("", { status: 200 });
+  } catch {
+    return new Response("", { status: 200 });
+  }
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -143,9 +221,22 @@ const server = Bun.serve({
       return handleClearChat(req);
     }
 
+    if (path === "/api/feature" && req.method === "POST") {
+      return handleFeature(req);
+    }
+
+    if (path === "/api/feature/clear" && req.method === "POST") {
+      return handleFeatureClear(req);
+    }
+
     // Serve index.html for root
     if (path === "/") {
       return serveStatic("/index.html");
+    }
+
+    // Serve feature.html for /feature
+    if (path === "/feature") {
+      return serveStatic("/feature.html");
     }
 
     // Serve other static files

@@ -65,6 +65,8 @@
       cursor: pointer;
       transition: box-shadow 0.15s;
       min-height: 150px;
+      display: flex;
+      flex-direction: column;
     }
     .week-day:hover {
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -120,6 +122,26 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .week-day-actions {
+      display: flex;
+      gap: 0.25rem;
+      margin-top: auto;
+      padding-top: 0.5rem;
+    }
+    .week-day-btn {
+      flex: 1;
+      padding: 0.25rem;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      color: #666;
+    }
+    .week-day-btn:hover {
+      background: #e8e8e8;
+      color: #333;
+    }
 
     /* Day View */
     #day-view {
@@ -145,6 +167,19 @@
     .day-title {
       font-size: 1.25rem;
       font-weight: 600;
+      flex: 1;
+      text-align: center;
+    }
+    .day-nav-btn {
+      background: none;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .day-nav-btn:hover {
+      background: #f0f0f0;
     }
 
     /* Todo List */
@@ -357,7 +392,9 @@
     <div id="day-view">
       <div class="day-header">
         <button class="back-btn" onclick="showWeekView()">&larr; Week</button>
+        <button class="day-nav-btn" onclick="prevDay()">&larr;</button>
         <span class="day-title" id="day-title"></span>
+        <button class="day-nav-btn" onclick="nextDay()">&rarr;</button>
       </div>
 
       <div
@@ -404,6 +441,27 @@
       >
         Loading...
       </div>
+    </div>
+  </div>
+
+  <!-- Quick Add Modal (for week view) -->
+  <div id="quick-add-modal" class="modal-backdrop" onclick="if(event.target === this) hideQuickAdd()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Add Task</h2>
+        <button class="modal-close" onclick="hideQuickAdd()">&times;</button>
+      </div>
+      <form id="quick-add-form" class="add-form" style="border: none; padding: 0; margin: 0;">
+        <div class="form-row">
+          <input type="text" name="title" placeholder="Task title" required>
+          <input type="time" name="time" placeholder="Time (optional)">
+        </div>
+        <input type="hidden" name="scheduled_for" id="quick-add-date">
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="hideQuickAdd()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Task</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -542,8 +600,62 @@
       document.getElementById('backlog-modal').classList.remove('open');
     }
 
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', init);
+    // Day navigation
+    function prevDay() {
+      const date = new Date(currentDay);
+      date.setDate(date.getDate() - 1);
+      openDay(date.toISOString().split('T')[0]);
+    }
+
+    function nextDay() {
+      const date = new Date(currentDay);
+      date.setDate(date.getDate() + 1);
+      openDay(date.toISOString().split('T')[0]);
+    }
+
+    // Quick add task from week view
+    function quickAddTask(dateStr) {
+      document.getElementById('quick-add-date').value = dateStr;
+      document.getElementById('quick-add-modal').classList.add('open');
+      document.querySelector('#quick-add-form input[name="title"]').focus();
+    }
+
+    function hideQuickAdd() {
+      document.getElementById('quick-add-modal').classList.remove('open');
+      document.getElementById('quick-add-form').reset();
+    }
+
+    // Quick backlog from week view
+    function quickBacklog(dateStr) {
+      const backlogList = document.getElementById('backlog-list');
+      backlogList.setAttribute('hx-get', `/api/todos/backlog?date=${dateStr}`);
+      htmx.process(backlogList);
+      htmx.trigger(backlogList, 'load');
+      document.getElementById('backlog-modal').classList.add('open');
+    }
+
+    // Handle quick add form submission
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+
+      document.getElementById('quick-add-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+
+        try {
+          await fetch('/api/todos', {
+            method: 'POST',
+            body: formData
+          });
+          hideQuickAdd();
+          // Refresh week grid
+          htmx.trigger(document.getElementById('week-grid'), 'refresh');
+        } catch (err) {
+          console.error('Failed to add task:', err);
+        }
+      });
+    });
   </script>
 </body>
 </html>

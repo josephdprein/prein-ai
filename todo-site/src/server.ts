@@ -127,6 +127,10 @@ function renderWeekView(mondayStr: string): string {
         <div class="week-day-tasks">
           ${todos.map(renderWeekTaskItem).join("")}
         </div>
+        <div class="week-day-actions">
+          <button class="week-day-btn" onclick="event.stopPropagation(); quickAddTask('${dateStr}')" title="Add new task">+</button>
+          <button class="week-day-btn" onclick="event.stopPropagation(); quickBacklog('${dateStr}')" title="Add from backlog">...</button>
+        </div>
       </div>
     `;
   }

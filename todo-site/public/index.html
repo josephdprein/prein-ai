@@ -14,15 +14,308 @@
       max-width: 800px;
       margin: 0 auto;
       padding: 2rem;
+      background: #fafafa;
+    }
+    h1 {
+      margin-bottom: 0.25rem;
+    }
+    .date-display {
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Todo List */
+    #todo-list {
+      min-height: 100px;
+    }
+    .todo-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+    .todo-item.completed {
+      opacity: 0.6;
+      background: #f5f5f5;
+    }
+    .todo-item.completed .todo-title {
+      text-decoration: line-through;
+    }
+    .todo-content {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .todo-title {
+      font-weight: 500;
+    }
+    .todo-time {
+      color: #666;
+      font-size: 0.875rem;
+      background: #eee;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+    }
+    .todo-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* Buttons */
+    .btn {
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.25rem 0.5rem;
+      transition: background 0.15s;
+    }
+    .btn-complete {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .btn-complete:hover {
+      background: #c8e6c9;
+    }
+    .btn-unschedule {
+      background: #ffebee;
+      color: #c62828;
+    }
+    .btn-unschedule:hover {
+      background: #ffcdd2;
+    }
+    .btn-schedule {
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+    .btn-schedule:hover {
+      background: #bbdefb;
+    }
+    .btn-primary {
+      background: #1976d2;
+      color: white;
+      padding: 0.5rem 1rem;
+    }
+    .btn-primary:hover {
+      background: #1565c0;
+    }
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+      padding: 0.5rem 1rem;
+    }
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    /* Add Form */
+    .add-form {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    .add-form h3 {
+      margin: 0 0 1rem 0;
+    }
+    .form-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .form-row input {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    .form-row input[type="time"] {
+      flex: 0 0 auto;
+      width: 120px;
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-backdrop.open {
+      display: flex;
+    }
+    .modal {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal h2 {
+      margin: 0 0 1rem 0;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #666;
+    }
+
+    /* Backlog Items */
+    .backlog-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-message {
+      color: #666;
+      font-style: italic;
     }
   </style>
 </head>
 <body>
   <h1>Todo Site</h1>
-  <p>Daily task planner</p>
+  <p class="date-display" id="date-display"></p>
 
   <div id="app">
-    <!-- TODO: Add todo list UI -->
+    <div
+      id="todo-list"
+      hx-get=""
+      hx-trigger="load, refresh"
+    >
+      Loading...
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-primary" onclick="showAddForm()">+ Add New Task</button>
+      <button class="btn btn-secondary" onclick="showBacklog()">Add from Backlog</button>
+    </div>
+
+    <div id="add-form-container" style="display: none;">
+      <form class="add-form" hx-post="/api/todos" hx-target="#todo-list" hx-swap="beforeend" hx-on::after-request="hideAddForm()">
+        <h3>Add New Task</h3>
+        <div class="form-row">
+          <input type="text" name="title" placeholder="Task title" required>
+          <input type="time" name="time" placeholder="Time (optional)">
+        </div>
+        <input type="hidden" name="scheduled_for" id="scheduled-for-input">
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="hideAddForm()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Task</button>
+        </div>
+      </form>
+    </div>
   </div>
+
+  <!-- Backlog Modal -->
+  <div id="backlog-modal" class="modal-backdrop" onclick="if(event.target === this) hideBacklog()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Backlog</h2>
+        <button class="modal-close" onclick="hideBacklog()">&times;</button>
+      </div>
+      <div
+        id="backlog-list"
+        hx-get=""
+        hx-trigger="load"
+      >
+        Loading...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Get today's date
+    function getToday() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    // Initialize the page
+    function init() {
+      const today = getToday();
+      const dateDisplay = document.getElementById('date-display');
+      dateDisplay.textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      // Set up the API endpoint for todo list
+      const todoList = document.getElementById('todo-list');
+      todoList.setAttribute('hx-get', `/api/todos/day/${today}`);
+      htmx.process(todoList);
+
+      // Set the scheduled_for hidden input
+      document.getElementById('scheduled-for-input').value = today;
+
+      // Set up backlog endpoint
+      const backlogList = document.getElementById('backlog-list');
+      backlogList.setAttribute('hx-get', `/api/todos/backlog?date=${today}`);
+    }
+
+    function showAddForm() {
+      document.getElementById('add-form-container').style.display = 'block';
+      document.querySelector('.add-form input[name="title"]').focus();
+    }
+
+    function hideAddForm() {
+      document.getElementById('add-form-container').style.display = 'none';
+      document.querySelector('.add-form').reset();
+    }
+
+    function showBacklog() {
+      const modal = document.getElementById('backlog-modal');
+      modal.classList.add('open');
+      const backlogList = document.getElementById('backlog-list');
+      htmx.process(backlogList);
+      htmx.trigger(backlogList, 'load');
+    }
+
+    function hideBacklog() {
+      document.getElementById('backlog-modal').classList.remove('open');
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
 </body>
 </html>

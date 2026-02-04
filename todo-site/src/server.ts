@@ -67,10 +67,88 @@ function renderBacklogItem(todo: Todo, date: string): string {
   `;
 }
 
+// Helper to render compact week task item
+function renderWeekTaskItem(todo: Todo): string {
+  const timeDisplay = todo.scheduled_for?.includes("T")
+    ? todo.scheduled_for.split("T")[1]?.slice(0, 5)
+    : null;
+
+  return `
+    <div class="week-task ${todo.completed ? "completed" : ""}">
+      ${timeDisplay ? `<span class="week-task-time">${timeDisplay}</span>` : ""}
+      <span class="week-task-title">${todo.title}</span>
+    </div>
+  `;
+}
+
+// Helper to get Monday of a given week
+function getMonday(dateStr: string): Date {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(date.setDate(diff));
+}
+
+// Helper to format date as YYYY-MM-DD
+function formatDate(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+// Helper to render week view HTML
+function renderWeekView(mondayStr: string): string {
+  const monday = new Date(mondayStr);
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const today = formatDate(new Date());
+
+  let html = "";
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + i);
+    const dateStr = formatDate(dayDate);
+    const isToday = dateStr === today;
+
+    const stmt = db.prepare(`
+      SELECT * FROM todos
+      WHERE scheduled_for LIKE ? || '%'
+      ORDER BY
+        CASE WHEN scheduled_for LIKE '%T%' THEN 0 ELSE 1 END,
+        scheduled_for,
+        title
+    `);
+    const todos = stmt.all(dateStr) as Todo[];
+
+    html += `
+      <div class="week-day ${isToday ? "today" : ""}" onclick="openDay('${dateStr}')">
+        <div class="week-day-header">
+          <span class="week-day-name">${days[i]}</span>
+          <span class="week-day-date">${dayDate.getDate()}</span>
+        </div>
+        <div class="week-day-tasks">
+          ${todos.map(renderWeekTaskItem).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
 const server = Bun.serve({
   port: 3000,
   routes: {
     "/": index,
+
+    // Get week view HTML
+    "/api/todos/week/:monday": {
+      GET: (req) => {
+        const monday = req.params.monday;
+        const html = renderWeekView(monday);
+        return new Response(html, {
+          headers: { "Content-Type": "text/html" },
+        });
+      },
+    },
 
     // Get todos for a specific day
     "/api/todos/day/:date": {

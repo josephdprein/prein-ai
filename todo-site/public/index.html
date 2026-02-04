@@ -11,7 +11,7 @@
     }
     body {
       font-family: system-ui, -apple-system, sans-serif;
-      max-width: 800px;
+      max-width: 900px;
       margin: 0 auto;
       padding: 2rem;
       background: #fafafa;
@@ -22,6 +22,129 @@
     .date-display {
       color: #666;
       margin-bottom: 1.5rem;
+    }
+
+    /* Week View */
+    .week-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .week-nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .week-nav-btn {
+      background: none;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .week-nav-btn:hover {
+      background: #f0f0f0;
+    }
+    .week-range {
+      font-weight: 500;
+      color: #333;
+    }
+    #week-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.5rem;
+      min-height: 300px;
+    }
+    .week-day {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: box-shadow 0.15s;
+      min-height: 150px;
+    }
+    .week-day:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .week-day.today {
+      border-color: #1976d2;
+      border-width: 2px;
+    }
+    .week-day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #eee;
+    }
+    .week-day-name {
+      font-size: 0.75rem;
+      color: #666;
+      text-transform: uppercase;
+    }
+    .week-day-date {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .week-day.today .week-day-date {
+      color: #1976d2;
+    }
+    .week-day-tasks {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .week-task {
+      display: flex;
+      gap: 0.25rem;
+      font-size: 0.75rem;
+      padding: 0.25rem;
+      background: #f9f9f9;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .week-task.completed {
+      opacity: 0.5;
+      text-decoration: line-through;
+    }
+    .week-task-time {
+      color: #666;
+      flex-shrink: 0;
+    }
+    .week-task-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Day View */
+    #day-view {
+      display: none;
+    }
+    .day-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .back-btn {
+      background: none;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .back-btn:hover {
+      background: #f0f0f0;
+    }
+    .day-title {
+      font-size: 1.25rem;
+      font-weight: 600;
     }
 
     /* Todo List */
@@ -213,35 +336,57 @@
 </head>
 <body>
   <h1>Todo Site</h1>
-  <p class="date-display" id="date-display"></p>
 
   <div id="app">
-    <div
-      id="todo-list"
-      hx-get=""
-      hx-trigger="load, refresh"
-    >
-      Loading...
+    <!-- Week View -->
+    <div id="week-view">
+      <div class="week-header">
+        <div class="week-nav">
+          <button class="week-nav-btn" onclick="prevWeek()">&larr;</button>
+          <span class="week-range" id="week-range"></span>
+          <button class="week-nav-btn" onclick="nextWeek()">&rarr;</button>
+        </div>
+        <button class="btn btn-secondary" onclick="goToToday()">Today</button>
+      </div>
+      <div id="week-grid" hx-get="" hx-trigger="load, refresh">
+        Loading...
+      </div>
     </div>
 
-    <div class="action-buttons">
-      <button class="btn btn-primary" onclick="showAddForm()">+ Add New Task</button>
-      <button class="btn btn-secondary" onclick="showBacklog()">Add from Backlog</button>
-    </div>
+    <!-- Day View -->
+    <div id="day-view">
+      <div class="day-header">
+        <button class="back-btn" onclick="showWeekView()">&larr; Week</button>
+        <span class="day-title" id="day-title"></span>
+      </div>
 
-    <div id="add-form-container" style="display: none;">
-      <form class="add-form" hx-post="/api/todos" hx-target="#todo-list" hx-swap="beforeend" hx-on::after-request="hideAddForm()">
-        <h3>Add New Task</h3>
-        <div class="form-row">
-          <input type="text" name="title" placeholder="Task title" required>
-          <input type="time" name="time" placeholder="Time (optional)">
-        </div>
-        <input type="hidden" name="scheduled_for" id="scheduled-for-input">
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" onclick="hideAddForm()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Task</button>
-        </div>
-      </form>
+      <div
+        id="todo-list"
+        hx-get=""
+        hx-trigger="load, refresh"
+      >
+        Loading...
+      </div>
+
+      <div class="action-buttons">
+        <button class="btn btn-primary" onclick="showAddForm()">+ Add New Task</button>
+        <button class="btn btn-secondary" onclick="showBacklog()">Add from Backlog</button>
+      </div>
+
+      <div id="add-form-container" style="display: none;">
+        <form class="add-form" hx-post="/api/todos" hx-target="#todo-list" hx-swap="beforeend" hx-on::after-request="hideAddForm()">
+          <h3>Add New Task</h3>
+          <div class="form-row">
+            <input type="text" name="title" placeholder="Task title" required>
+            <input type="time" name="time" placeholder="Time (optional)">
+          </div>
+          <input type="hidden" name="scheduled_for" id="scheduled-for-input">
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="hideAddForm()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Add Task</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -263,33 +408,116 @@
   </div>
 
   <script>
-    // Get today's date
+    let currentMonday = null;
+    let currentDay = null;
+
+    // Get today's date as YYYY-MM-DD
     function getToday() {
       return new Date().toISOString().split('T')[0];
     }
 
-    // Initialize the page
-    function init() {
-      const today = getToday();
-      const dateDisplay = document.getElementById('date-display');
-      dateDisplay.textContent = new Date().toLocaleDateString('en-US', {
+    // Get Monday of the week for a given date
+    function getMonday(dateStr) {
+      const date = new Date(dateStr);
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(date.setDate(diff));
+      return monday.toISOString().split('T')[0];
+    }
+
+    // Format date range for week header
+    function formatWeekRange(mondayStr) {
+      const monday = new Date(mondayStr);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const options = { month: 'short', day: 'numeric' };
+      const mondayFmt = monday.toLocaleDateString('en-US', options);
+      const sundayFmt = sunday.toLocaleDateString('en-US', { ...options, year: 'numeric' });
+
+      return `${mondayFmt} - ${sundayFmt}`;
+    }
+
+    // Format date for day view header
+    function formatDayTitle(dateStr) {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       });
+    }
+
+    // Initialize the page
+    function init() {
+      const today = getToday();
+      currentMonday = getMonday(today);
+      loadWeek();
+    }
+
+    // Load week view
+    function loadWeek() {
+      document.getElementById('week-range').textContent = formatWeekRange(currentMonday);
+
+      const weekGrid = document.getElementById('week-grid');
+      weekGrid.setAttribute('hx-get', `/api/todos/week/${currentMonday}`);
+      htmx.process(weekGrid);
+      htmx.trigger(weekGrid, 'load');
+    }
+
+    // Navigate to previous week
+    function prevWeek() {
+      const monday = new Date(currentMonday);
+      monday.setDate(monday.getDate() - 7);
+      currentMonday = monday.toISOString().split('T')[0];
+      loadWeek();
+    }
+
+    // Navigate to next week
+    function nextWeek() {
+      const monday = new Date(currentMonday);
+      monday.setDate(monday.getDate() + 7);
+      currentMonday = monday.toISOString().split('T')[0];
+      loadWeek();
+    }
+
+    // Go to current week
+    function goToToday() {
+      currentMonday = getMonday(getToday());
+      loadWeek();
+    }
+
+    // Open day view
+    function openDay(dateStr) {
+      currentDay = dateStr;
+
+      document.getElementById('week-view').style.display = 'none';
+      document.getElementById('day-view').style.display = 'block';
+      document.getElementById('day-title').textContent = formatDayTitle(dateStr);
 
       // Set up the API endpoint for todo list
       const todoList = document.getElementById('todo-list');
-      todoList.setAttribute('hx-get', `/api/todos/day/${today}`);
+      todoList.setAttribute('hx-get', `/api/todos/day/${dateStr}`);
       htmx.process(todoList);
+      htmx.trigger(todoList, 'load');
 
       // Set the scheduled_for hidden input
-      document.getElementById('scheduled-for-input').value = today;
+      document.getElementById('scheduled-for-input').value = dateStr;
 
       // Set up backlog endpoint
       const backlogList = document.getElementById('backlog-list');
-      backlogList.setAttribute('hx-get', `/api/todos/backlog?date=${today}`);
+      backlogList.setAttribute('hx-get', `/api/todos/backlog?date=${dateStr}`);
+    }
+
+    // Show week view
+    function showWeekView() {
+      document.getElementById('day-view').style.display = 'none';
+      document.getElementById('week-view').style.display = 'block';
+      hideAddForm();
+
+      // Refresh week grid to show any changes
+      htmx.trigger(document.getElementById('week-grid'), 'refresh');
     }
 
     function showAddForm() {

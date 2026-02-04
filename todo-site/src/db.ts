@@ -7,8 +7,12 @@ db.run(`
   CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
-    completed INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    description TEXT,
+    scheduled_for TEXT,
+    due_by TEXT,
+    created_on TEXT,
+    thoughts TEXT,
+    completed INTEGER DEFAULT 0
   )
 `);
 

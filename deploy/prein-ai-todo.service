@@ -1,0 +1,25 @@
+[Unit]
+Description=Prein AI - Todo Application
+After=network.target
+
+[Service]
+Type=simple
+User=prein
+Group=prein
+WorkingDirectory=/opt/prein-ai/todo-site
+ExecStart=/home/prein/.bun/bin/bun run src/server.ts
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3002
+EnvironmentFile=-/opt/prein-ai/.env
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/prein-ai
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

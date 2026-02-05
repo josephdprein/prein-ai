@@ -1,0 +1,46 @@
+name: Deploy to Hetzner
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Hetzner VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            set -e
+
+            cd /opt/prein-ai
+
+            # Pull latest code
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Install dependencies for both apps
+            cd /opt/prein-ai/claude-site
+            ~/.bun/bin/bun install
+
+            cd /opt/prein-ai/todo-site
+            ~/.bun/bin/bun install
+
+            # Restart services
+            sudo systemctl restart prein-ai-claude
+            sudo systemctl restart prein-ai-todo
+
+            # Show status
+            echo "=== Deployment Complete ==="
+            sudo systemctl status prein-ai-claude --no-pager || true
+            sudo systemctl status prein-ai-todo --no-pager || true

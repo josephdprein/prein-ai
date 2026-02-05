@@ -139,7 +139,7 @@ function renderWeekView(mondayStr: string): string {
 }
 
 const server = Bun.serve({
-  port: 3000,
+  port: process.env.PORT || 3000,
   routes: {
     "/": index,
 

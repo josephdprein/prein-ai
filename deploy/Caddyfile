@@ -1,0 +1,49 @@
+# Caddyfile for Prein AI
+# Caddy automatically obtains and renews TLS certificates via Let's Encrypt
+
+# Option 1: Subdomain-based routing (requires DNS setup)
+# Replace 'example.com' with your actual domain
+
+# ai.example.com {
+#     reverse_proxy localhost:3001
+# }
+
+# todo.example.com {
+#     reverse_proxy localhost:3002
+# }
+
+# Option 2: Path-based routing on a single domain
+# Replace 'example.com' with your actual domain or IP
+
+# example.com {
+#     # Claude AI app (main)
+#     handle /* {
+#         reverse_proxy localhost:3001
+#     }
+# }
+
+# Option 3: IP-based (no TLS) - for testing or internal use
+# Replace YOUR_SERVER_IP with your Hetzner VM IP
+:80 {
+    # Claude AI app on root path
+    handle /todo/* {
+        uri strip_prefix /todo
+        reverse_proxy localhost:3002
+    }
+
+    # Default: Claude AI app
+    handle /* {
+        reverse_proxy localhost:3001
+    }
+}
+
+# Production config example with domain:
+# yourdomain.com {
+#     handle /todo/* {
+#         uri strip_prefix /todo
+#         reverse_proxy localhost:3002
+#     }
+#     handle /* {
+#         reverse_proxy localhost:3001
+#     }
+# }

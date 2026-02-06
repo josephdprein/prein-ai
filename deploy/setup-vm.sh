@@ -70,36 +70,37 @@ fi
 
 echo ""
 echo "[6/8] Installing application dependencies..."
-cd "$APP_DIR/claude-site"
-sudo -u "$APP_USER" /home/$APP_USER/.bun/bin/bun install
-
 cd "$APP_DIR/todo-site"
 sudo -u "$APP_USER" /home/$APP_USER/.bun/bin/bun install
 
 echo ""
-echo "[7/8] Setting up environment file..."
-if [ ! -f "$APP_DIR/.env" ]; then
-    cat > "$APP_DIR/.env" << 'EOF'
-# Anthropic API Key (required for claude-site)
-ANTHROPIC_API_KEY=your-api-key-here
+echo "[7/8] Setting up Caddy basic auth..."
+if [ ! -f "/etc/caddy/env" ]; then
+    echo ""
+    echo ">>> Setting up basic auth credentials <<<"
+    read -rp "Enter basic auth username: " AUTH_USER
+    read -rsp "Enter basic auth password: " AUTH_PASS
+    echo ""
 
-# Ports (managed by systemd, but useful for reference)
-# CLAUDE_PORT=3001
-# TODO_PORT=3002
-EOF
-    chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
-    chmod 600 "$APP_DIR/.env"
-    echo "Created .env file at $APP_DIR/.env"
-    echo ">>> IMPORTANT: Edit this file and add your ANTHROPIC_API_KEY <<<"
+    HASH=$(caddy hash-password --plaintext "$AUTH_PASS")
+
+    echo "BASIC_AUTH_USER=$AUTH_USER" > /etc/caddy/env
+    echo "BASIC_AUTH_HASH=$HASH" >> /etc/caddy/env
+    chmod 600 /etc/caddy/env
+    echo "Caddy auth credentials saved to /etc/caddy/env"
+
+    # Create systemd override so Caddy loads the env file
+    mkdir -p /etc/systemd/system/caddy.service.d
+    printf '[Service]\nEnvironmentFile=/etc/caddy/env\n' > /etc/systemd/system/caddy.service.d/env.conf
+    echo "Caddy systemd override created"
 else
-    echo ".env file already exists"
+    echo "Caddy env file already exists at /etc/caddy/env"
 fi
 
 echo ""
 echo "[8/8] Installing systemd services..."
 
 # Copy service files
-cp "$APP_DIR/deploy/prein-ai-claude.service" /etc/systemd/system/
 cp "$APP_DIR/deploy/prein-ai-todo.service" /etc/systemd/system/
 
 # Copy Caddy config
@@ -109,8 +110,8 @@ cp "$APP_DIR/deploy/Caddyfile" /etc/caddy/Caddyfile
 systemctl daemon-reload
 
 # Enable and start services
-systemctl enable prein-ai-claude prein-ai-todo caddy
-systemctl restart prein-ai-claude prein-ai-todo caddy
+systemctl enable prein-ai-todo caddy
+systemctl restart prein-ai-todo caddy
 
 echo ""
 echo "========================================="
@@ -118,8 +119,6 @@ echo "  Setup Complete!"
 echo "========================================="
 echo ""
 echo "Services status:"
-echo ""
-systemctl status prein-ai-claude --no-pager -l || true
 echo ""
 systemctl status prein-ai-todo --no-pager -l || true
 echo ""
@@ -129,28 +128,24 @@ echo "========================================="
 echo "  Next Steps:"
 echo "========================================="
 echo ""
-echo "1. Edit the environment file:"
-echo "   sudo nano $APP_DIR/.env"
-echo "   Add your ANTHROPIC_API_KEY"
-echo ""
-echo "2. If using a domain, edit Caddy config:"
+echo "1. If using a domain, edit Caddy config:"
 echo "   sudo nano /etc/caddy/Caddyfile"
 echo "   Replace ':80' with your domain for auto-HTTPS"
 echo ""
-echo "3. Restart services after changes:"
-echo "   sudo systemctl restart prein-ai-claude prein-ai-todo caddy"
+echo "2. Restart services after changes:"
+echo "   sudo systemctl restart prein-ai-todo caddy"
 echo ""
-echo "4. Set up GitHub Actions secrets for CI/CD:"
+echo "3. Set up GitHub Actions secrets for CI/CD:"
 echo "   - HETZNER_HOST: Your VM IP (e.g., 123.45.67.89)"
 echo "   - HETZNER_USER: $APP_USER"
 echo "   - HETZNER_SSH_KEY: Your SSH private key"
+echo "   - BASIC_AUTH_USER: Username for basic auth"
+echo "   - BASIC_AUTH_PASSWORD: Password for basic auth (plaintext; hashed during deploy)"
 echo ""
-echo "5. Access your apps:"
-echo "   - Claude AI: http://YOUR_IP/"
-echo "   - Todo App:  http://YOUR_IP/todo/"
+echo "4. Access your app:"
+echo "   - Todo App: http://YOUR_IP/"
 echo ""
 echo "Logs:"
-echo "   journalctl -u prein-ai-claude -f"
 echo "   journalctl -u prein-ai-todo -f"
 echo "   journalctl -u caddy -f"
 echo ""

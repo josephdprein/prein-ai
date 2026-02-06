@@ -1,0 +1,8 @@
+# Caddy environment variables for basic auth
+# Copy this file to /etc/caddy/env and fill in the values.
+#
+# Generate a password hash with:
+#   caddy hash-password --plaintext 'yourpassword'
+
+BASIC_AUTH_USER=admin
+BASIC_AUTH_HASH=$2a$14$EXAMPLE_HASH_HERE

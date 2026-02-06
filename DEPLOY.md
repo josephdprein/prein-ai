@@ -1,16 +1,14 @@
 # Deployment Guide - Hetzner VM
 
-This guide covers deploying Prein AI to a Hetzner Cloud VM.
+This guide covers deploying the Todo application to a Hetzner Cloud VM.
 
 ## Architecture
 
 ```
-Internet → Caddy (port 80/443) → Bun apps
-                                 ├── claude-site (localhost:3001)
-                                 └── todo-site (localhost:3002)
+Internet → Caddy (port 80/443, basic auth) → Todo app (localhost:3002)
 ```
 
-- **Caddy**: Reverse proxy with automatic HTTPS (Let's Encrypt)
+- **Caddy**: Reverse proxy with basic auth and automatic HTTPS
 - **systemd**: Process management with auto-restart
 - **GitHub Actions**: CI/CD pipeline for automatic deployments
 
@@ -46,27 +44,9 @@ cd /opt/prein-ai
 sudo bash deploy/setup-vm.sh
 ```
 
-### 3. Configure Environment
+The setup script will prompt you for a basic auth username and password.
 
-Edit the environment file:
-
-```bash
-sudo nano /opt/prein-ai/.env
-```
-
-Add your Anthropic API key:
-
-```
-ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
-```
-
-Restart services:
-
-```bash
-sudo systemctl restart prein-ai-claude
-```
-
-### 4. (Optional) Configure Domain & HTTPS
+### 3. (Optional) Configure Domain & HTTPS
 
 If you have a domain:
 
@@ -78,13 +58,10 @@ If you have a domain:
 3. Replace `:80` with your domain:
    ```
    yourdomain.com {
-       handle /todo/* {
-           uri strip_prefix /todo
-           reverse_proxy localhost:3002
+       basicauth {
+           {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
        }
-       handle /* {
-           reverse_proxy localhost:3001
-       }
+       reverse_proxy localhost:3002
    }
    ```
 4. Restart Caddy:
@@ -98,16 +75,17 @@ Caddy will automatically obtain and renew TLS certificates.
 
 ### GitHub Actions Secrets
 
-Add these secrets to your GitHub repository:
-
-1. Go to Settings → Secrets and variables → Actions
-2. Add the following secrets:
+Add these secrets to your GitHub repository (Settings → Secrets and variables → Actions):
 
 | Secret | Description |
 |--------|-------------|
 | `HETZNER_HOST` | Your VM's IP address |
 | `HETZNER_USER` | `prein` (the app user) |
-| `HETZNER_SSH_KEY` | Your SSH private key (the one whose public key is on the VM) |
+| `HETZNER_SSH_KEY` | SSH private key for deployment |
+| `BASIC_AUTH_USER` | Username for basic auth |
+| `BASIC_AUTH_PASSWORD` | Password for basic auth (plaintext; hashed on the server during deploy) |
+
+The CI pipeline hashes the password on the server using `caddy hash-password` and writes it to `/etc/caddy/env`. The password is never stored in plaintext on disk.
 
 ### SSH Key Setup
 
@@ -120,10 +98,7 @@ To allow GitHub Actions to deploy:
 
 2. Add the public key to VM:
    ```bash
-   # SSH into your VM
    ssh root@YOUR_VM_IP
-
-   # Add to prein user's authorized_keys
    echo "YOUR_PUBLIC_KEY" >> /home/prein/.ssh/authorized_keys
    ```
 
@@ -135,16 +110,14 @@ Every push to `main` triggers:
 1. GitHub Actions connects to VM via SSH
 2. Pulls latest code from repository
 3. Installs dependencies
-4. Restarts services
+4. Restarts the todo service and Caddy
+5. Hashes `BASIC_AUTH_PASSWORD` and writes credentials to Caddy env file
 
 ## Manual Operations
 
 ### View Logs
 
 ```bash
-# Claude AI logs
-journalctl -u prein-ai-claude -f
-
 # Todo app logs
 journalctl -u prein-ai-todo -f
 
@@ -155,18 +128,12 @@ journalctl -u caddy -f
 ### Restart Services
 
 ```bash
-# Individual
-sudo systemctl restart prein-ai-claude
-sudo systemctl restart prein-ai-todo
-
-# All at once
-sudo systemctl restart prein-ai-claude prein-ai-todo caddy
+sudo systemctl restart prein-ai-todo caddy
 ```
 
 ### Check Status
 
 ```bash
-sudo systemctl status prein-ai-claude
 sudo systemctl status prein-ai-todo
 sudo systemctl status caddy
 ```
@@ -176,15 +143,26 @@ sudo systemctl status caddy
 ```bash
 cd /opt/prein-ai
 git pull origin main
-cd claude-site && ~/.bun/bin/bun install
-cd ../todo-site && ~/.bun/bin/bun install
-sudo systemctl restart prein-ai-claude prein-ai-todo
+cd todo-site && ~/.bun/bin/bun install
+sudo systemctl restart prein-ai-todo
+```
+
+### Change Basic Auth Password
+
+```bash
+# Generate new hash
+caddy hash-password --plaintext 'newpassword'
+
+# Edit the env file
+sudo nano /etc/caddy/env
+
+# Restart Caddy
+sudo systemctl restart caddy
 ```
 
 ## Firewall (Optional but Recommended)
 
 ```bash
-# Allow SSH, HTTP, HTTPS
 sudo ufw allow ssh
 sudo ufw allow http
 sudo ufw allow https
@@ -196,9 +174,10 @@ sudo ufw enable
 | File | Purpose |
 |------|---------|
 | `/opt/prein-ai/` | Application code |
-| `/opt/prein-ai/.env` | Environment variables |
-| `/etc/systemd/system/prein-ai-*.service` | Service definitions |
+| `/etc/systemd/system/prein-ai-todo.service` | Service definition |
 | `/etc/caddy/Caddyfile` | Reverse proxy config |
+| `/etc/caddy/env` | Basic auth credentials (username + bcrypt hash) |
+| `/etc/systemd/system/caddy.service.d/env.conf` | Caddy systemd override to load env file |
 
 ## Troubleshooting
 
@@ -206,14 +185,13 @@ sudo ufw enable
 
 Check logs:
 ```bash
-journalctl -u prein-ai-claude -n 50 --no-pager
+journalctl -u prein-ai-todo -n 50 --no-pager
 ```
 
 ### Port already in use
 
 Check what's using the port:
 ```bash
-sudo lsof -i :3001
 sudo lsof -i :3002
 ```
 

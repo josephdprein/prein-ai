@@ -1,49 +1,26 @@
-# Caddyfile for Prein AI
+# Caddyfile for Prein AI - Todo Application
 # Caddy automatically obtains and renews TLS certificates via Let's Encrypt
 
-# Option 1: Subdomain-based routing (requires DNS setup)
-# Replace 'example.com' with your actual domain
+# Basic auth credentials are loaded from environment variables.
+# BASIC_AUTH_USER and BASIC_AUTH_HASH must be set in the Caddy systemd
+# environment (see deploy/caddy-env.example).
+#
+# Generate a password hash with: caddy hash-password --plaintext 'yourpassword'
 
-# ai.example.com {
-#     reverse_proxy localhost:3001
-# }
-
-# todo.example.com {
-#     reverse_proxy localhost:3002
-# }
-
-# Option 2: Path-based routing on a single domain
-# Replace 'example.com' with your actual domain or IP
-
-# example.com {
-#     # Claude AI app (main)
-#     handle /* {
-#         reverse_proxy localhost:3001
-#     }
-# }
-
-# Option 3: IP-based (no TLS) - for testing or internal use
-# Replace YOUR_SERVER_IP with your Hetzner VM IP
+# IP-based (no TLS) - for testing or internal use
 :80 {
-    # Claude AI app on root path
-    handle /todo/* {
-        uri strip_prefix /todo
-        reverse_proxy localhost:3002
+    basicauth {
+        {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
     }
 
-    # Default: Claude AI app
-    handle /* {
-        reverse_proxy localhost:3001
-    }
+    reverse_proxy localhost:3002
 }
 
-# Production config example with domain:
+# Production config example with domain (auto-HTTPS via Let's Encrypt):
 # yourdomain.com {
-#     handle /todo/* {
-#         uri strip_prefix /todo
-#         reverse_proxy localhost:3002
+#     basicauth {
+#         {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 #     }
-#     handle /* {
-#         reverse_proxy localhost:3001
-#     }
+#
+#     reverse_proxy localhost:3002
 # }

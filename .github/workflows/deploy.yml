@@ -29,18 +29,49 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Install dependencies for both apps
-            cd /opt/prein-ai/claude-site
-            ~/.bun/bin/bun install
-
+            # Install dependencies
             cd /opt/prein-ai/todo-site
             ~/.bun/bin/bun install
 
-            # Restart services
-            sudo systemctl restart prein-ai-claude
+            # Restart todo service
             sudo systemctl restart prein-ai-todo
+
+            # Update Caddy config
+            sudo cp /opt/prein-ai/deploy/Caddyfile /etc/caddy/Caddyfile
+            sudo systemctl restart caddy
 
             # Show status
             echo "=== Deployment Complete ==="
-            sudo systemctl status prein-ai-claude --no-pager || true
             sudo systemctl status prein-ai-todo --no-pager || true
+            sudo systemctl status caddy --no-pager || true
+
+      - name: Configure Caddy basic auth
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          envs: BASIC_AUTH_USER,BASIC_AUTH_PASSWORD
+          script: |
+            set -e
+
+            # Generate bcrypt hash from plaintext password
+            HASH=$(caddy hash-password --plaintext "$BASIC_AUTH_PASSWORD")
+
+            # Write Caddy env file
+            echo "BASIC_AUTH_USER=$BASIC_AUTH_USER" | sudo tee /etc/caddy/env > /dev/null
+            echo "BASIC_AUTH_HASH=$HASH" | sudo tee -a /etc/caddy/env > /dev/null
+            sudo chmod 600 /etc/caddy/env
+
+            # Ensure Caddy systemd override loads the env file
+            sudo mkdir -p /etc/systemd/system/caddy.service.d
+            printf '[Service]\nEnvironmentFile=/etc/caddy/env\n' | sudo tee /etc/systemd/system/caddy.service.d/env.conf > /dev/null
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart caddy
+
+            echo "=== Caddy auth configured ==="
+            sudo systemctl status caddy --no-pager || true
+        env:
+          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
